@@ -6260,7 +6260,16 @@ void GLCanvas3D::on_kill_focus(wxFocusEvent &evt)
         ImGui::GetIO().ImeWindowHandle = nullptr;
     }
     ImGui::SetWindowFocus(nullptr);
-    render();
+    // Do NOT render() synchronously here. This runs inside GTK's focus-out callback, which fires
+    // mid-transition - switching a settings tab or a gizmo grabs focus away from the canvas - and
+    // the painter gizmos are not in a renderable state at that moment: GLGizmo*::render_triangles
+    // indexes m_triangle_selectors, which is only sized once the gizmo has taken over the current
+    // selection. Rendering from here segfaulted on ordinary tab/gizmo clicks (four identical
+    // SIGSEGVs, all through on_kill_focus -> render -> render_painter_gizmo). Schedule a repaint
+    // instead and let the normal paint path draw once the state is consistent.
+    set_as_dirty();
+    if (m_canvas != nullptr)
+        m_canvas->Refresh();
     evt.Skip();
 }
 

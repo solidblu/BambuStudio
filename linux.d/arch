@@ -1,0 +1,2 @@
+FOUND_GTK3=$(pacman -Qq gtk3 2>/dev/null || true)
+FOUND_GTK3_DEV=$FOUND_GTK3

@@ -1,0 +1,34 @@
+# Toolchain-only image for building BambuStudio on Ubuntu (CI / coder.com workspace).
+# Source is NOT baked in: mount or clone it at runtime.
+#
+#   docker build -f docker/BuildEnvDockerfile -t bambustudio-buildenv .          # Ubuntu 24.04
+#   docker build -f docker/BuildEnvDockerfile --build-arg UBUNTU=22.04 -t bambustudio-buildenv:22 .
+#
+#   docker run --rm -v "$PWD":/src -w /src bambustudio-buildenv ./BuildLinux.sh -dsr    # deps + studio
+#   docker run --rm -v "$PWD":/src -w /src bambustudio-buildenv ./BuildLinux.sh -i      # AppImage
+#
+# Cache deps/build between runs (a named volume or the mounted checkout) or the deps rebuild every time.
+ARG UBUNTU=24.04
+FROM docker.io/ubuntu:${UBUNTU}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Package list lives in linux.d/debian; let the build script install it so this never drifts.
+# libgtk-3-dev goes first: the script greps `dpkg -l libgtk*` under set -e and dies on a bare image.
+COPY BuildLinux.sh /tmp/bs/
+COPY linux.d /tmp/bs/linux.d
+RUN apt-get update && apt-get install -y --no-install-recommends sudo ca-certificates libgtk-3-dev \
+    && cd /tmp/bs && ./BuildLinux.sh -u \
+    && rm -rf /tmp/bs /var/lib/apt/lists/*
+
+# Non-root user with passwordless sudo (coder.com convention). Drop the stock `ubuntu` user (24.04) so UID 1000 is free.
+ARG USER=coder
+ARG UID=1000
+RUN (userdel -r ubuntu 2>/dev/null || true) \
+    && useradd -m -u ${UID} -s /bin/bash ${USER} \
+    && echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER} && chmod 440 /etc/sudoers.d/${USER} \
+    && git config --system --add safe.directory '*'
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+USER ${USER}
+WORKDIR /src

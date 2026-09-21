@@ -552,7 +552,7 @@ ParamTooltip &ParamTooltip::instance()
     return *s_self;
 }
 
-ParamTooltip::ParamTooltip() : wxPopupTransientWindow(wxGetApp().mainframe, wxBORDER_NONE)
+ParamTooltip::ParamTooltip() : wxPopupWindow(wxGetApp().mainframe, wxBORDER_NONE)
 {
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     SetBackgroundColour(light_palette().card_bg);
@@ -673,7 +673,11 @@ void ParamTooltip::build_layout()
     m_wiki->SetFont(Label::Body_13);
     m_wiki->SetCursor(wxCursor(wxCURSOR_HAND));
     m_wiki->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &) {
-        if (!m_wiki_url.IsEmpty()) wxLaunchDefaultBrowser(m_wiki_url);
+        if (m_wiki_url.IsEmpty()) return;
+        // Close the card when the wiki opens: focus moves to the browser, so the pointer never
+        // leaves the card's rect to trigger the normal hover-hide and it would otherwise sit there.
+        DoHide(true);
+        wxLaunchDefaultBrowser(m_wiki_url);
     });
     col->Add(m_wiki, 0, wxTOP, FromDIP(GAP));
 
@@ -955,7 +959,7 @@ void ParamTooltip::DoHide(bool now)
 {
     if (now) {
         m_hide = true;
-        wxPopupTransientWindow::Hide();
+        wxPopupWindow::Hide();
         update_shadow(false);
         return;
     }
@@ -973,7 +977,7 @@ void ParamTooltip::OnTimer(wxTimerEvent &)
             m_timer->StartOnce(HIDE_DELAY_MS);
             return;
         }
-        wxPopupTransientWindow::Hide();
+        wxPopupWindow::Hide();
         update_shadow(false);
     } else {
         Show();

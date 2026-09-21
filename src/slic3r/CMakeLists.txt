@@ -798,7 +798,8 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     FIND_LIBRARY(WAYLAND_EGL_LIBRARIES    NAMES wayland-egl)
     FIND_LIBRARY(WAYLAND_CLIENT_LIBRARIES NAMES wayland-client)
     find_package(CURL REQUIRED)
-    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES} OSMesa)
+    # ponytail: OSMesa dropped - Arch mesa ships no libOSMesa. Costs headless GL (glfw OSMesa ctx, BambuStudio.cpp:6310,7773); install AUR osmesa and re-add if you need --export-png/thumbnails without a display.
+    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES})
     target_link_libraries(libslic3r_gui
         OpenGL::EGL
         ${WAYLAND_SERVER_LIBRARIES}

@@ -53,18 +53,29 @@ void GLGizmoPainterBase::set_painter_gizmo_data(const Selection& selection)
 GLGizmoPainterBase::ClippingPlaneDataWrapper GLGizmoPainterBase::get_clipping_plane_data() const
 {
     ClippingPlaneDataWrapper clp_data_out{{0.f, 0.f, 1.f, FLT_MAX}, {-FLT_MAX, FLT_MAX}};
+    if (m_c == nullptr)
+        return clp_data_out;
+
     // Take care of the clipping plane. The normal of the clipping plane is
     // saved with opposite sign than we need to pass to OpenGL (FIXME)
-    if (bool clipping_plane_active = m_c->object_clipper()->get_position() != 0.; clipping_plane_active) {
-        const ClippingPlane *clp = m_c->object_clipper()->get_clipping_plane();
-        for (size_t i = 0; i < 3; ++i)
-            clp_data_out.clp_dataf[i] = -1.f * float(clp->get_data()[i]);
-        clp_data_out.clp_dataf[3] = float(clp->get_data()[3]);
+    //
+    // object_clipper() is documented to return nullptr whenever the pool's ObjectClipper is not
+    // valid yet (see CommonGizmosDataPool::object_clipper). GLCanvas3D::on_kill_focus renders the
+    // whole scene straight from the focus-out handler, which reaches the painter gizmos in exactly
+    // that state - so the old unchecked deref segfaulted on an ordinary settings-tab switch
+    // whenever a painted (MMU/seam/support/fuzzy-skin) object was in the scene.
+    auto *oc = m_c->object_clipper();
+    if (oc != nullptr && oc->get_position() != 0.) {
+        if (const ClippingPlane *clp = oc->get_clipping_plane(); clp != nullptr) {
+            for (size_t i = 0; i < 3; ++i)
+                clp_data_out.clp_dataf[i] = -1.f * float(clp->get_data()[i]);
+            clp_data_out.clp_dataf[3] = float(clp->get_data()[3]);
+        }
     }
 
     // z_range is calculated in the same way as in GLCanvas3D::_render_objects(GLVolumeCollection::ERenderType type)
-    if (m_c->get_canvas()->get_use_clipping_planes()) {
-        const std::array<ClippingPlane, 2> &clps = m_c->get_canvas()->get_clipping_planes();
+    if (const GLCanvas3D *canvas = m_c->get_canvas(); canvas != nullptr && canvas->get_use_clipping_planes()) {
+        const std::array<ClippingPlane, 2> &clps = canvas->get_clipping_planes();
         clp_data_out.z_range                     = {-FLT_MAX, float(clps[1].get_data()[3])};
     }
 
