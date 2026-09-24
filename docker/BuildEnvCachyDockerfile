@@ -1,0 +1,21 @@
+# Toolchain-only CachyOS image for building BambuStudio. Same shape as BuildEnvDockerfile (Ubuntu):
+# no source baked in, `coder` user with passwordless sudo, checkout mounted or cloned at /src.
+#
+#   docker build -f docker/BuildEnvCachyDockerfile -t bambustudio-buildenv:cachyos .
+#   docker run --rm -v "$PWD":/src -w /src bambustudio-buildenv:cachyos ./BuildLinux.sh -dsr
+FROM docker.io/cachyos/cachyos:latest
+
+# Package list lives in linux.d/arch; let the build script install it so this never drifts.
+COPY BuildLinux.sh /tmp/bs/
+COPY linux.d /tmp/bs/linux.d
+RUN cd /tmp/bs && ./BuildLinux.sh -u && rm -rf /tmp/bs /var/cache/pacman/pkg/*
+
+ARG USER=coder
+ARG UID=1000
+RUN useradd -m -u ${UID} -s /bin/bash ${USER} \
+    && echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER} && chmod 440 /etc/sudoers.d/${USER} \
+    && git config --system --add safe.directory '*'
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+USER ${USER}
+WORKDIR /src

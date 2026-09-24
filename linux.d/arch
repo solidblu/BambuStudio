@@ -1,2 +1,49 @@
 FOUND_GTK3=$(pacman -Qq gtk3 2>/dev/null || true)
+
+REQUIRED_DEV_PACKAGES=(
+    base-devel
+    autoconf
+    cmake
+    ninja
+    extra-cmake-modules
+    file
+    gettext
+    git
+    wget
+    libtool
+    texinfo
+    nasm
+    yasm
+    gtk3
+    webkit2gtk-4.1
+    glew
+    glu
+    mesa
+    libglvnd
+    eglexternalplatform
+    wayland
+    wayland-protocols
+    libxkbcommon
+    gstreamer
+    gst-plugins-base
+    gst-plugins-good
+    gst-plugins-bad
+    libsecret
+    openssl
+    curl
+    dbus
+    systemd-libs
+    libunwind
+    fuse2
+    x264
+    bzip2
+)
+
+if [[ -n "$UPDATE_LIB" ]]
+then
+    sudo pacman -Syu --needed --noconfirm ${REQUIRED_DEV_PACKAGES[@]}
+    echo -e "done\n"
+    exit 0
+fi
+
 FOUND_GTK3_DEV=$FOUND_GTK3
