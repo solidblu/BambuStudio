@@ -1748,6 +1748,63 @@ void WebViewPanel::OnNavigationComplete(wxWebViewEvent& evt)
     ShowNetpluginTip();
 }
 
+// MakerWorld's studio webview shows the creator avatar/name as clickable but does nothing on click.
+// Collect uid/name -> handle from page data and API responses (the page swaps models without
+// reloading), then open the creator's profile in the system browser via common_openurl.
+static const char *MAKERWORLD_CREATOR_LINKS_JS = R"JS(
+(function () {
+    if (window.__bbsCreatorLinks) return;
+    window.__bbsCreatorLinks = true;
+    var byUid = {}, byName = {};
+    function scan(s) {
+        if (typeof s !== 'string' || s.indexOf('"handle"') < 0) return;
+        var re = /\{[^{}]*"handle":"[^"]+"[^{}]*\}/g, m;
+        while ((m = re.exec(s))) {
+            try {
+                var o = JSON.parse(m[0]);
+                if (o.uid && o.handle) {
+                    byUid[o.uid] = o.handle;
+                    if (o.name) byName[o.name] = o.handle;
+                }
+            } catch (e) {}
+        }
+    }
+    try { scan(JSON.stringify(window.__NEXT_DATA__ || {})); } catch (e) {}
+    var f = window.fetch;
+    if (f) window.fetch = function () {
+        return f.apply(this, arguments).then(function (r) {
+            if ((r.headers.get('content-type') || '').indexOf('json') >= 0)
+                r.clone().text().then(scan, function () {});
+            return r;
+        });
+    };
+    var send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function () {
+        this.addEventListener('load', function () {
+            if (this.responseType === '' || this.responseType === 'text') scan(this.responseText);
+        });
+        return send.apply(this, arguments);
+    };
+    document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest || t.closest('a')) return;
+        var handle, nameEl = t.closest('.user_name');
+        if (nameEl) {
+            handle = byName[nameEl.textContent.trim()];
+        } else if (t.tagName === 'IMG') {
+            var m = (t.getAttribute('src') || '').match(/\/(?:user\/\d+|avatar)\/(\d+)\//);
+            if (m) handle = byUid[m[1]];
+        }
+        if (!handle) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var lang = (location.pathname.match(/^\/([a-z]{2}(?:-[A-Za-z]+)?)\//) || [0, 'en'])[1];
+        var msg = JSON.stringify({ command: 'common_openurl', url: location.origin + '/' + lang + '/@' + encodeURIComponent(handle) });
+        (window.wx || window.webkit.messageHandlers.wx).postMessage(msg);
+    }, true);
+})();
+)JS";
+
 /**
     * Callback invoked when a page is finished loading
     */
@@ -1756,6 +1813,7 @@ void WebViewPanel::OnDocumentLoaded(wxWebViewEvent& evt)
     wxString wurl = evt.GetURL();
     // Only notify if the document is the main frame, not a subframe
     if (m_browserMW != nullptr && evt.GetId() == m_browserMW->GetId()) {
+        WebView::RunScript(m_browserMW, MAKERWORLD_CREATOR_LINKS_JS);
         if (m_makerworld_sso_navigation_pending) {
             const wxString current_url = m_browserMW->GetCurrentURL();
             if (IsMakerWorldSignInUrl(current_url)) {
